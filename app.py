@@ -57,6 +57,8 @@ def home():
 @app.get("/analyze")
 def analyze(symptoms: str):
     return {
-        "result": f"Possible condition based on symptoms: {symptoms}. Please consult a doctor."
+        "condition": "Possible Viral Infection",
+        "medicines": "Paracetamol, ORS",
+        "advice": "Rest well and consult a doctor if symptoms persist"
     }
 
