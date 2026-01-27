@@ -1,139 +1,62 @@
-from fastapi import FastAPI, Query
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI
+from pydantic import BaseModel
+from fastapi.middleware.cors import CORSMiddleware
+import openai
+import os
 
 app = FastAPI()
 
-DISCLAIMER = (
-    "This app provides general health information only. "
-    "It does NOT diagnose or replace a medical professional. "
-    "Consult a doctor for proper treatment."
+# Allow MIT App Inventor access
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
-DATABASE = {
-    "fever": {
-        "conditions": ["Viral Fever", "Flu", "Infection"],
-        "medicines": ["Paracetamol", "Ibuprofen"],
-        "advice": "Rest, fluids. Doctor if fever > 2 days."
-    },
-    "cold": {
-        "conditions": ["Common Cold", "Allergy"],
-        "medicines": ["Cetirizine", "Levocetirizine"],
-        "advice": "Avoid cold drinks."
-    },
-    "cough": {
-        "conditions": ["Dry Cough", "Chest Infection"],
-        "medicines": ["Dextromethorphan", "Bromhexine"],
-        "advice": "Doctor if cough > 7 days."
-    },
-    "headache": {
-        "conditions": ["Tension Headache", "Migraine"],
-        "medicines": ["Paracetamol"],
-        "advice": "Rest, hydration."
-    },
-    "stomach pain": {
-        "conditions": ["Acidity", "Indigestion"],
-        "medicines": ["Omeprazole", "Gelusil"],
-        "advice": "Avoid spicy food."
-    },
-    "diarrhea": {
-        "conditions": ["Food Poisoning", "Infection"],
-        "medicines": ["ORS", "Zinc"],
-        "advice": "Hydration is critical."
-    },
-    "vomiting": {
-        "conditions": ["Gastritis", "Food Poisoning"],
-        "medicines": ["ORS", "Domperidone"],
-        "advice": "Small sips of water."
-    },
-    "sore throat": {
-        "conditions": ["Throat Infection"],
-        "medicines": ["Warm Gargle", "Paracetamol"],
-        "advice": "Avoid cold food."
-    },
-    "body pain": {
-        "conditions": ["Muscle Strain", "Viral Infection"],
-        "medicines": ["Paracetamol"],
-        "advice": "Rest and hydration."
-    },
-    "back pain": {
-        "conditions": ["Muscle Strain"],
-        "medicines": ["Paracetamol"],
-        "advice": "Avoid heavy lifting."
-    },
-    "allergy": {
-        "conditions": ["Seasonal Allergy"],
-        "medicines": ["Cetirizine"],
-        "advice": "Avoid allergens."
-    },
-    "acidity": {
-        "conditions": ["GERD"],
-        "medicines": ["Omeprazole"],
-        "advice": "Eat small meals."
-    },
-    "asthma": {
-        "conditions": ["Asthma"],
-        "medicines": ["Salbutamol Inhaler"],
-        "advice": "Emergency care if breathing worsens."
-    },
-    "burn": {
-        "conditions": ["Minor Burn"],
-        "medicines": ["Cool Water", "Burn Ointment"],
-        "advice": "Hospital for severe burns."
-    },
-    "cut": {
-        "conditions": ["Minor Injury"],
-        "medicines": ["Antiseptic", "Bandage"],
-        "advice": "Clean wound properly."
-    },
-    "toothache": {
-        "conditions": ["Dental Infection"],
-        "medicines": ["Paracetamol"],
-        "advice": "Visit dentist ASAP."
-    },
-    "ear pain": {
-        "conditions": ["Ear Infection"],
-        "medicines": ["Paracetamol"],
-        "advice": "Do not insert objects."
-    },
-    "eye irritation": {
-        "conditions": ["Eye Allergy"],
-        "medicines": ["Lubricating Eye Drops"],
-        "advice": "Avoid rubbing eyes."
-    },
-    "constipation": {
-        "conditions": ["Digestive Issue"],
-        "medicines": ["Isabgol"],
-        "advice": "Increase fiber intake."
-    },
-    "insomnia": {
-        "conditions": ["Sleep Disorder"],
-        "medicines": ["Sleep Hygiene"],
-        "advice": "Avoid screens at night."
-    }
-}
+# 🔐 OpenAI API Key (set in Render)
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
-EMERGENCY_SYMPTOMS = [
-    "chest pain", "breathing difficulty", "unconscious",
-    "severe bleeding", "seizure"
-]
+class SymptomInput(BaseModel):
+    symptoms: str
+
+@app.post("/analyze")
+def analyze(symptoms: SymptomInput):
+    prompt = f"""
+You are a medical assistant AI.
+
+User symptoms:
+{symptoms.symptoms}
+
+Respond ONLY in this format:
+
+Condition:
+Medicines:
+Advice:
+
+Keep it short, clear, and safe.
+Add a disclaimer line at the end.
+"""
+
+    response = openai.ChatCompletion.create(
+        model="gpt-3.5-turbo",
+        messages=[{"role": "user", "content": prompt}],
+        max_tokens=200
+    )
+
+    result = response.choices[0].message.content
+
+    return {
+        "result": result
+    }
 
 @app.get("/")
 def home():
-    return {"status": "server alive"}
+    return {"status": "MedicAI AI backend running"}
 
-@app.get("/suggest")
-def suggest(symptoms: str = Query(None)):
-    if symptoms is None or symptoms.strip() == "":
-        return JSONResponse(
-            {"error": "No symptoms provided"},
-            status_code=400
-        )
-
+@app.get("/analyze")
+def analyze(symptoms: str):
     return {
-    "result": (
-        "Possible condition: Viral Fever\n"
-        "Medicines: Paracetamol, ORS\n"
-        "Advice: Rest, drink fluids, consult doctor if persists"
-    )
-}
+        "result": f"Possible condition based on symptoms: {symptoms}. Please consult a doctor."
+    }
 
