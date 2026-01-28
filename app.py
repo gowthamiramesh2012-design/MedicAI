@@ -14,19 +14,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 🔐 OpenAI API Key (set in Render)
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
 class SymptomInput(BaseModel):
     symptoms: str
 
 @app.post("/analyze")
-def analyze(symptoms: SymptomInput):
+def analyze(data: SymptomInput):
     prompt = f"""
 You are a medical assistant AI.
 
 User symptoms:
-{symptoms.symptoms}
+{data.symptoms}
 
 Respond ONLY in this format:
 
@@ -34,8 +33,8 @@ Condition:
 Medicines:
 Advice:
 
-Keep it short, clear, and safe.
-Add a disclaimer line at the end.
+Add this line at the end:
+"⚠️ This is general information and not a medical diagnosis."
 """
 
     response = openai.ChatCompletion.create(
@@ -44,21 +43,10 @@ Add a disclaimer line at the end.
         max_tokens=200
     )
 
-    result = response.choices[0].message.content
-
     return {
-        "result": result
+        "result": response.choices[0].message.content
     }
 
 @app.get("/")
 def home():
     return {"status": "MedicAI AI backend running"}
-
-@app.get("/analyze")
-def analyze(symptoms: str):
-    return {
-        "condition": "Possible Viral Infection",
-        "medicines": "Paracetamol, ORS",
-        "advice": "Rest well and consult a doctor if symptoms persist"
-    }
-
