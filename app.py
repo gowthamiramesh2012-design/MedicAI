@@ -1,8 +1,9 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
-import openai
+from openai import OpenAI
 import os
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 app = FastAPI()
 
@@ -21,32 +22,25 @@ class SymptomInput(BaseModel):
 
 @app.post("/analyze")
 def analyze(data: SymptomInput):
-    prompt = f"""
-You are a medical assistant AI.
-
-User symptoms:
-{data.symptoms}
-
-Respond ONLY in this format:
-
-Condition:
-Medicines:
-Advice:
-
-Add this line at the end:
-"⚠️ This is general information and not a medical diagnosis."
-"""
-
-    response = openai.ChatCompletion.create(
-        model="gpt-3.5-turbo",
-        messages=[{"role": "user", "content": prompt}],
-        max_tokens=200
-    )
-
     return {
-        "result": response.choices[0].message.content
-    }
+        "result": f"""Condition:
+Possible Viral Infection
 
-@app.get("/")
-def home():
-    return {"status": "MedicAI AI backend running"}
+Medicines:
+Paracetamol, ORS
+
+Advice:
+Rest well and consult a doctor if symptoms persist.
+
+⚠️ This is general information and not a medical diagnosis."""
+    }
+    response = client.chat.completions.create(
+    model="gpt-3.5-turbo",
+    messages=[
+        {"role": "user", "content": prompt}
+    ]
+)
+
+return {
+    "result": response.choices[0].message.content
+}
