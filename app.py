@@ -1,99 +1,118 @@
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
-from fastapi.middleware.cors import CORSMiddleware
-from openai import OpenAI
-import os
+from flask import Flask, request, jsonify
+from flask_cors import CORS
 
-app = FastAPI()
+app = Flask(__name__)
+CORS(app)
 
-# CORS (MIT App Inventor friendly)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Load OpenAI key
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-
-client = None
-if OPENAI_API_KEY:
-    client = OpenAI(api_key=OPENAI_API_KEY)
-
-
-class SymptomInput(BaseModel):
-    symptoms: str
-
-
-@app.get("/")
-def root():
-    return {"status": "ok"}
-
-
-@app.get("/debug-key")
-def debug_key():
-    return {
-        "openai_key_loaded": bool(OPENAI_API_KEY),
-        "key_prefix": OPENAI_API_KEY[:3] if OPENAI_API_KEY else None
+# Symptom database
+SYMPTOM_DB = {
+    "fever": {
+        "condition": "Possible viral or bacterial infection",
+        "medicines": "Paracetamol, Ibuprofen",
+        "advice": "Drink fluids and rest"
+    },
+    "headache": {
+        "condition": "Stress, dehydration, or migraine",
+        "medicines": "Paracetamol, Ibuprofen",
+        "advice": "Rest and reduce screen time"
+    },
+    "cough": {
+        "condition": "Cold, flu, or throat irritation",
+        "medicines": "Cough syrup, Lozenges",
+        "advice": "Warm fluids and steam inhalation"
+    },
+    "cold": {
+        "condition": "Common cold",
+        "medicines": "Antihistamines",
+        "advice": "Rest and stay warm"
+    },
+    "sore throat": {
+        "condition": "Throat infection or irritation",
+        "medicines": "Lozenges, Warm salt water gargle",
+        "advice": "Avoid cold drinks"
+    },
+    "stomach pain": {
+        "condition": "Indigestion or gastritis",
+        "medicines": "Antacids",
+        "advice": "Avoid spicy food"
+    },
+    "diarrhea": {
+        "condition": "Food poisoning or infection",
+        "medicines": "ORS, Zinc tablets",
+        "advice": "Stay hydrated"
+    },
+    "vomiting": {
+        "condition": "Gastric infection or food poisoning",
+        "medicines": "ORS, Antiemetics",
+        "advice": "Small sips of water"
+    },
+    "chest pain": {
+        "condition": "Muscle strain or heart-related issue",
+        "medicines": "Consult doctor immediately",
+        "advice": "Seek medical help urgently"
+    },
+    "shortness of breath": {
+        "condition": "Asthma or respiratory infection",
+        "medicines": "Inhaler if prescribed",
+        "advice": "Seek medical help"
+    },
+    "fatigue": {
+        "condition": "Weakness or viral infection",
+        "medicines": "Multivitamins",
+        "advice": "Adequate sleep and nutrition"
+    },
+    "body pain": {
+        "condition": "Viral fever or muscle strain",
+        "medicines": "Paracetamol",
+        "advice": "Rest and warm compress"
+    },
+    "rash": {
+        "condition": "Allergy or skin infection",
+        "medicines": "Antihistamines",
+        "advice": "Avoid scratching"
+    },
+    "dizziness": {
+        "condition": "Low blood pressure or dehydration",
+        "medicines": "ORS",
+        "advice": "Sit or lie down immediately"
     }
+}
 
+@app.route("/")
+def home():
+    return "MedicAI backend running"
 
-@app.post("/analyze")
-def analyze(data: SymptomInput):
-    if not data.symptoms:
-        raise HTTPException(status_code=400, detail="Symptoms missing")
+@app.route("/analyze", methods=["POST"])
+def analyze():
+    data = request.get_json()
+    symptoms_text = data.get("symptoms", "").lower()
 
-    # If OpenAI key is missing, return fallback (NO crash)
-    if not client:
-        return {
-            "result": f"""
-Condition:
-Unknown (AI unavailable)
+    found = []
+    for symptom, info in SYMPTOM_DB.items():
+        if symptom in symptoms_text:
+            found.append(info)
 
-Symptoms:
-{data.symptoms}
+    if not found:
+        return jsonify({
+            "result": "Condition: Unknown\nMedicines: Consult doctor\nAdvice: Please seek medical attention\n\n⚠️ This is general information and not a medical diagnosis."
+        })
+
+    condition = ", ".join(set(i["condition"] for i in found))
+    medicines = ", ".join(set(i["medicines"] for i in found))
+    advice = ", ".join(set(i["advice"] for i in found))
+
+    return jsonify({
+        "result": f"""Condition:
+{condition}
+
+Medicines:
+{medicines}
 
 Advice:
-Rest, fluids, consult a doctor if symptoms persist.
+{advice}
 
-⚠️ OpenAI key not configured.
-"""
-        }
+⚠️ This is general information and not a medical diagnosis."""
+    })
 
-    try:
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You are a medical assistant. Give general advice only."
-                },
-                {
-                    "role": "user",
-                    "content": f"My symptoms are: {data.symptoms}"
-                }
-            ],
-            max_tokens=200
-        )
-
-        return {
-            "result": response.choices[0].message.content
-        }
-
-    except Exception as e:
-        # Catch EVERYTHING so FastAPI never returns 500
-        return {
-            "result": f"""
-Condition:
-Unable to analyze
-
-Symptoms:
-{data.symptoms}
-
-Error:
-{str(e)}
-
-⚠️ AI service error. Not a medical diagnosis.
-"""
-                            }
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=10000)
