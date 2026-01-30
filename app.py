@@ -4,6 +4,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from openai import OpenAI
 import os
 
+# ----------------------------
+# App setup
+# ----------------------------
 app = FastAPI()
 
 app.add_middleware(
@@ -13,25 +16,46 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+# ----------------------------
+# OpenAI client
+# ----------------------------
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+client = OpenAI(api_key=OPENAI_API_KEY)
 
+# ----------------------------
+# Request model
+# ----------------------------
 class SymptomInput(BaseModel):
     symptoms: str
 
+# ----------------------------
+# Health check
+# ----------------------------
 @app.get("/health")
 def health():
     return {
-        "openai_key_loaded": bool(os.getenv("OPENAI_API_KEY"))
+        "openai_key_loaded": bool(OPENAI_API_KEY)
     }
 
+# ----------------------------
+# Debug endpoint (temporary)
+# ----------------------------
+@app.get("/debug")
+def debug():
+    return {
+        "key_loaded": bool(OPENAI_API_KEY),
+        "key_preview": OPENAI_API_KEY[:8] + "..." if OPENAI_API_KEY else None
+    }
+
+# ----------------------------
+# Analyze symptoms
+# ----------------------------
 @app.post("/analyze")
 def analyze(data: SymptomInput):
-    response = client.chat.completions.create(
-        model="gpt-3.5-turbo",
-        messages=[
-            {
-                "role": "user",
-                "content": f"""
+    if not OPENAI_API_KEY:
+        return {"error": "OPENAI_API_KEY not loaded"}
+
+    prompt = f"""
 You are a medical assistant AI.
 
 User symptoms:
@@ -43,10 +67,13 @@ Condition:
 Medicines:
 Advice:
 
-Add this line at the end:
-"⚠️ This is general information and not a medical diagnosis."
+⚠️ This is general information and not a medical diagnosis.
 """
-            }
+
+    response = client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=[
+            {"role": "user", "content": prompt}
         ],
         max_tokens=200
     )
@@ -54,3 +81,11 @@ Add this line at the end:
     return {
         "result": response.choices[0].message.content
     }
+
+# ----------------------------
+# Root
+# ----------------------------
+@app.get("/")
+def root():
+    return {"status": "MedicAI backend running"}
+
