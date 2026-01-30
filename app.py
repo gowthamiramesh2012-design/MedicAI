@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 from openai import OpenAI
@@ -26,10 +26,12 @@ def health():
 
 @app.post("/analyze")
 def analyze(data: SymptomInput):
-    if not os.getenv("OPENAI_API_KEY"):
-        raise HTTPException(status_code=500, detail="OpenAI API key not configured")
-
-    prompt = f"""
+    response = client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=[
+            {
+                "role": "user",
+                "content": f"""
 You are a medical assistant AI.
 
 User symptoms:
@@ -44,11 +46,9 @@ Advice:
 Add this line at the end:
 "⚠️ This is general information and not a medical diagnosis."
 """
-
-    response = client.chat.completions.create(
-        model="gpt-3.5-turbo",
-        messages=[{"role": "user", "content": prompt}],
-        max_tokens=200,
+            }
+        ],
+        max_tokens=200
     )
 
     return {
