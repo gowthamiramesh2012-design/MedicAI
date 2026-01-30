@@ -6,7 +6,6 @@ import os
 
 app = FastAPI()
 
-# CORS (for MIT App Inventor)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -14,46 +13,33 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# OpenAI client
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 class SymptomInput(BaseModel):
     symptoms: str
 
-@app.get("/")
-def home():
-    return {"status": "MedicAI backend running"}
-
 @app.get("/health")
 def health():
-    return {
-        "openai_key_loaded": bool(os.getenv("OPENAI_API_KEY"))
-    }
+    return {"openai_key_loaded": bool(os.getenv("OPENAI_API_KEY"))}
 
 @app.post("/analyze")
 def analyze(data: SymptomInput):
     prompt = f"""
-You are a medical assistant AI.
+User symptoms: {data.symptoms}
 
-User symptoms:
-{data.symptoms}
+Give:
+1. Possible condition
+2. Basic medicines
+3. Advice
 
-Respond ONLY in this format:
-
-Condition:
-Medicines:
-Advice:
-
-⚠️ This is general information and not a medical diagnosis.
+Short and clear.
 """
 
     response = client.chat.completions.create(
         model="gpt-4o-mini",
-        messages=[{"role": "user", "content": prompt}],
-        max_tokens=200,
+        messages=[{"role": "user", "content": prompt}]
     )
 
     return {
         "result": response.choices[0].message.content
     }
-
