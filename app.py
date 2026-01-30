@@ -1,53 +1,53 @@
-import os
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from pydantic import BaseModel
+from fastapi.middleware.cors import CORSMiddleware
 from openai import OpenAI
+import os
 
 app = FastAPI()
 
-# Load OpenAI client
-api_key = os.getenv("OPENAI_API_KEY")
-if not api_key:
-    raise RuntimeError("OPENAI_API_KEY not set")
+# CORS for MIT App Inventor
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-client = OpenAI(api_key=api_key)
+# Load OpenAI key
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-class SymptomRequest(BaseModel):
+client = OpenAI(api_key=OPENAI_API_KEY)
+
+class SymptomInput(BaseModel):
     symptoms: str
 
 @app.get("/")
 def root():
-    return {"status": "MedicAI backend running"}
+    return {"status": "API running"}
 
-@app.get("/health")
-def health():
-    return {"openai_key_loaded": True}
+@app.get("/debug-key")
+def debug_key():
+    return {
+        "key_loaded": bool(OPENAI_API_KEY),
+        "key_prefix": OPENAI_API_KEY[:3] if OPENAI_API_KEY else None
+    }
 
 @app.post("/analyze")
-def analyze(data: SymptomRequest):
-    try:
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You are a medical assistant. Provide general health guidance, not a diagnosis."
-                },
-                {
-                    "role": "user",
-                    "content": data.symptoms
-                }
-            ],
-            temperature=0.4
-        )
+def analyze(data: SymptomInput):
+    if not OPENAI_API_KEY:
+        return {"error": "OpenAI API key not loaded"}
 
-        # THIS is the part people forget
-        result = response.choices[0].message.content
+    response = client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=[
+            {
+                "role": "user",
+                "content": f"User symptoms: {data.symptoms}. Give general advice only."
+            }
+        ]
+    )
 
-        return {
-            "symptoms": data.symptoms,
-            "analysis": result
-        }
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    return {
+        "result": response.choices[0].message.content
+    }
